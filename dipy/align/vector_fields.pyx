@@ -7,7 +7,7 @@ import numpy as np
 cimport numpy as cnp
 cimport cython
 from .fused_types cimport floating, number
-
+from cython.parallel import parallel, prange
 
 cdef extern from "dpy_math.h" nogil:
     double floor(double)
@@ -1421,7 +1421,7 @@ def simplify_warp_function_2d(floating[:, :, :] d,
         cnp.npy_intp ncols = out_shape[1]
         cnp.npy_intp i, j
         double di, dj, dii, djj
-        floating[:] tmp = np.zeros((2,), dtype=np.asarray(d).dtype)
+        floating[:, :] tmp = np.zeros((nrows, 2), dtype=np.asarray(d).dtype)
         floating[:, :, :] out = np.zeros(shape=(nrows, ncols, 2),
                                          dtype=np.asarray(d).dtype)
 
@@ -1432,9 +1432,9 @@ def simplify_warp_function_2d(floating[:, :, :] d,
     if not is_valid_affine(affine_disp, 2):
         raise ValueError("Invalid displacement multiplication matrix")
 
-    with nogil:
+    with nogil, parallel():
 
-        for i in range(nrows):
+        for i in prange(nrows):
             for j in range(ncols):
                 # Apply inner index pre-multiplication
                 if affine_idx_in is None:
@@ -1445,9 +1445,9 @@ def simplify_warp_function_2d(floating[:, :, :] d,
                         i, j, 1, affine_idx_in)
                     dj = _apply_affine_2d_x1(
                         i, j, 1, affine_idx_in)
-                    _interpolate_vector_2d[floating](d, di, dj, &tmp[0])
-                    dii = tmp[0]
-                    djj = tmp[1]
+                    _interpolate_vector_2d[floating](d, di, dj, &tmp[i, 0])
+                    dii = tmp[i, 0]
+                    djj = tmp[i, 1]
 
                 # Apply displacement multiplication
                 if affine_disp is not None:
@@ -1544,7 +1544,7 @@ def simplify_warp_function_3d(floating[:, :, :, :] d,
         cnp.npy_intp ncols = out_shape[2]
         cnp.npy_intp i, j, k, inside
         double di, dj, dk, dii, djj, dkk
-        floating[:] tmp = np.zeros((3,), dtype=np.asarray(d).dtype)
+        floating[:, :] tmp = np.zeros((nslices, 3), dtype=np.asarray(d).dtype)
         floating[:, :, :, :] out = np.zeros(shape=(nslices, nrows, ncols, 3),
                                             dtype=np.asarray(d).dtype)
 
@@ -1555,9 +1555,9 @@ def simplify_warp_function_3d(floating[:, :, :, :] d,
     if not is_valid_affine(affine_disp, 3):
         raise ValueError("Invalid displacement multiplication matrix")
 
-    with nogil:
+    with nogil, parallel():
 
-        for k in range(nslices):
+        for k in prange(nslices):
             for i in range(nrows):
                 for j in range(ncols):
                     if affine_idx_in is None:
@@ -1572,10 +1572,10 @@ def simplify_warp_function_3d(floating[:, :, :, :] d,
                         dj = _apply_affine_3d_x2(
                             k, i, j, 1, affine_idx_in)
                         inside = _interpolate_vector_3d[floating](d, dk, di,
-                                                                  dj, &tmp[0])
-                        dkk = tmp[0]
-                        dii = tmp[1]
-                        djj = tmp[2]
+                                                                  dj, &tmp[k, 0])
+                        dkk = tmp[k, 0]
+                        dii = tmp[k, 1]
+                        djj = tmp[k, 2]
 
                     if affine_disp is not None:
                         dk = _apply_affine_3d_x0(
@@ -1632,8 +1632,8 @@ def reorient_vector_field_2d(floating[:, :, :] d,
     if affine is None:
         return
 
-    with nogil:
-        for i in range(nrows):
+    with nogil, parallel():
+        for i in prange(nrows):
             for j in range(ncols):
                 di = d[i, j, 0]
                 dj = d[i, j, 1]
@@ -1671,8 +1671,8 @@ def reorient_vector_field_3d(floating[:, :, :, :] d,
     if affine is None:
         return
 
-    with nogil:
-        for k in range(nslices):
+    with nogil, parallel():
+        for k in prange(nslices):
             for i in range(nrows):
                 for j in range(ncols):
                     dk = d[k, i, j, 0]
@@ -1946,11 +1946,11 @@ def warp_3d(floating[:, :, :] volume, floating[:, :, :, :] d1,
 
     cdef floating[:, :, :] warped = np.zeros(shape=(nslices, nrows, ncols),
                                              dtype=np.asarray(volume).dtype)
-    cdef floating[:] tmp = np.zeros(shape=(3,), dtype = np.asarray(d1).dtype)
+    cdef floating[:, :] tmp = np.zeros(shape=(nslices, 3), dtype = np.asarray(d1).dtype)
 
-    with nogil:
+    with nogil, parallel():
 
-        for k in range(nslices):
+        for k in prange(nslices):
             for i in range(nrows):
                 for j in range(ncols):
                     if affine_idx_in is None:
@@ -1965,10 +1965,10 @@ def warp_3d(floating[:, :, :] volume, floating[:, :, :, :] d1,
                         dj = _apply_affine_3d_x2(
                             k, i, j, 1, affine_idx_in)
                         inside = _interpolate_vector_3d[floating](d1, dk, di,
-                                                                  dj, &tmp[0])
-                        dkk = tmp[0]
-                        dii = tmp[1]
-                        djj = tmp[2]
+                                                                  dj, &tmp[k, 0])
+                        dkk = tmp[k, 0]
+                        dii = tmp[k, 1]
+                        djj = tmp[k, 2]
 
                     if affine_disp is not None:
                         dk = _apply_affine_3d_x0(
@@ -2048,9 +2048,9 @@ def transform_3d_affine(floating[:, :, :] volume, int[:] ref_shape,
     if not is_valid_affine(affine, 3):
         raise ValueError("Invalid affine transform matrix")
 
-    with nogil:
+    with nogil, parallel():
 
-        for k in range(nslices):
+        for k in prange(nslices):
             for i in range(nrows):
                 for j in range(ncols):
                     if affine is not None:
@@ -2146,11 +2146,11 @@ def warp_3d_nn(number[:, :, :] volume, floating[:, :, :, :] d1,
 
     cdef number[:, :, :] warped = np.zeros(shape=(nslices, nrows, ncols),
                                            dtype=np.asarray(volume).dtype)
-    cdef floating[:] tmp = np.zeros(shape=(3,), dtype = np.asarray(d1).dtype)
+    cdef floating[:, :] tmp = np.zeros(shape=(nslices, 3), dtype = np.asarray(d1).dtype)
 
-    with nogil:
+    with nogil, parallel():
 
-        for k in range(nslices):
+        for k in prange(nslices):
             for i in range(nrows):
                 for j in range(ncols):
                     if affine_idx_in is None:
@@ -2165,10 +2165,10 @@ def warp_3d_nn(number[:, :, :] volume, floating[:, :, :, :] d1,
                         dj = _apply_affine_3d_x2(
                             k, i, j, 1, affine_idx_in)
                         inside = _interpolate_vector_3d[floating](d1, dk, di,
-                                                                  dj, &tmp[0])
-                        dkk = tmp[0]
-                        dii = tmp[1]
-                        djj = tmp[2]
+                                                                  dj, &tmp[k, 0])
+                        dkk = tmp[k, 0]
+                        dii = tmp[k, 1]
+                        djj = tmp[k, 2]
 
                     if affine_disp is not None:
                         dk = _apply_affine_3d_x0(
@@ -2246,9 +2246,9 @@ def transform_3d_affine_nn(number[:, :, :] volume, int[:] ref_shape,
     if not is_valid_affine(affine, 3):
         raise ValueError("Invalid affine transform matrix")
 
-    with nogil:
+    with nogil, parallel():
 
-        for k in range(nslices):
+        for k in prange(nslices):
             for i in range(nrows):
                 for j in range(ncols):
                     if affine is not None:
@@ -2338,11 +2338,11 @@ def warp_2d(floating[:, :] image, floating[:, :, :] d1,
         ncols = d1.shape[1]
     cdef floating[:, :] warped = np.zeros(shape=(nrows, ncols),
                                           dtype=np.asarray(image).dtype)
-    cdef floating[:] tmp = np.zeros(shape=(2,), dtype=np.asarray(d1).dtype)
+    cdef floating[:, :] tmp = np.zeros(shape=(nrows, 2), dtype=np.asarray(d1).dtype)
 
-    with nogil:
+    with nogil, parallel():
 
-        for i in range(nrows):
+        for i in prange(nrows):
             for j in range(ncols):
                 # Apply inner index pre-multiplication
                 if affine_idx_in is None:
@@ -2353,9 +2353,9 @@ def warp_2d(floating[:, :] image, floating[:, :, :] d1,
                         i, j, 1, affine_idx_in)
                     dj = _apply_affine_2d_x1(
                         i, j, 1, affine_idx_in)
-                    _interpolate_vector_2d[floating](d1, di, dj, &tmp[0])
-                    dii = tmp[0]
-                    djj = tmp[1]
+                    _interpolate_vector_2d[floating](d1, di, dj, &tmp[i, 0])
+                    dii = tmp[i, 0]
+                    djj = tmp[i, 1]
 
                 # Apply displacement multiplication
                 if affine_disp is not None:
@@ -2426,9 +2426,9 @@ def transform_2d_affine(floating[:, :] image, int[:] ref_shape,
     if not is_valid_affine(affine, 2):
         raise ValueError("Invalid affine transform matrix")
 
-    with nogil:
+    with nogil, parallel():
 
-        for i in range(nrows):
+        for i in prange(nrows):
             for j in range(ncols):
                 if affine is not None:
                     dii = _apply_affine_2d_x0(i, j, 1, affine)
@@ -2515,11 +2515,11 @@ def warp_2d_nn(number[:, :] image, floating[:, :, :] d1,
         ncols = d1.shape[1]
     cdef number[:, :] warped = np.zeros(shape=(nrows, ncols),
                                         dtype=np.asarray(image).dtype)
-    cdef floating[:] tmp = np.zeros(shape=(2,), dtype=np.asarray(d1).dtype)
+    cdef floating[:, :] tmp = np.zeros(shape=(nrows, 2), dtype=np.asarray(d1).dtype)
 
-    with nogil:
+    with nogil, parallel():
 
-        for i in range(nrows):
+        for i in prange(nrows):
             for j in range(ncols):
                 # Apply inner index pre-multiplication
                 if affine_idx_in is None:
@@ -2530,9 +2530,9 @@ def warp_2d_nn(number[:, :] image, floating[:, :, :] d1,
                         i, j, 1, affine_idx_in)
                     dj = _apply_affine_2d_x1(
                         i, j, 1, affine_idx_in)
-                    _interpolate_vector_2d[floating](d1, di, dj, &tmp[0])
-                    dii = tmp[0]
-                    djj = tmp[1]
+                    _interpolate_vector_2d[floating](d1, di, dj, &tmp[i, 0])
+                    dii = tmp[i, 0]
+                    djj = tmp[i, 1]
 
                 # Apply displacement multiplication
                 if affine_disp is not None:
@@ -2603,9 +2603,9 @@ def transform_2d_affine_nn(number[:, :] image, int[:] ref_shape,
     if not is_valid_affine(affine, 2):
         raise ValueError("Invalid affine transform matrix")
 
-    with nogil:
+    with nogil, parallel():
 
-        for i in range(nrows):
+        for i in prange(nrows):
             for j in range(ncols):
                 if affine is not None:
                     dii = _apply_affine_2d_x0(i, j, 1, affine)
@@ -2652,14 +2652,15 @@ def resample_displacement_field_3d(floating[:, :, :, :] field,
         floating[:, :, :, :] expanded = np.zeros((tslices, trows, tcols, 3),
                                                  dtype=ftype)
 
-    for k in range(tslices):
-        for i in range(trows):
-            for j in range(tcols):
-                dkk = <double> k * factors[0]
-                dii = <double> i * factors[1]
-                djj = <double> j * factors[2]
-                _interpolate_vector_3d[floating](field, dkk, dii, djj,
-                                                 &expanded[k, i, j, 0])
+    with nogil, parallel():
+        for k in prange(tslices):
+            for i in range(trows):
+                for j in range(tcols):
+                    dkk = <double> k * factors[0]
+                    dii = <double> i * factors[1]
+                    djj = <double> j * factors[2]
+                    _interpolate_vector_3d[floating](field, dkk, dii, djj,
+                                                     &expanded[k, i, j, 0])
     return np.asarray(expanded)
 
 
@@ -2695,12 +2696,13 @@ def resample_displacement_field_2d(floating[:, :, :] field, double[:] factors,
         double dii, djj
         floating[:, :, :] expanded = np.zeros((trows, tcols, 2), dtype=ftype)
 
-    for i in range(trows):
-        for j in range(tcols):
-            dii = i*factors[0]
-            djj = j*factors[1]
-            inside = _interpolate_vector_2d[floating](field, dii, djj,
-                                                      &expanded[i, j, 0])
+    with nogil, parallel():
+        for i in prange(trows):
+            for j in range(tcols):
+                dii = i*factors[0]
+                djj = j*factors[1]
+                inside = _interpolate_vector_2d[floating](field, dii, djj,
+                                                          &expanded[i, j, 0])
     return np.asarray(expanded)
 
 
@@ -2910,15 +2912,16 @@ def create_harmonic_fields_2d(cnp.npy_intp nrows, cnp.npy_intp ncols,
         double theta
         double[:, :, :] d = np.zeros((nrows, ncols, 2), dtype=np.float64)
         double[:, :, :] inv = np.zeros((nrows, ncols, 2), dtype=np.float64)
-    for i in range(nrows):
-        for j in range(ncols):
-            ii = i - mid_row
-            jj = j - mid_col
-            theta = atan2(ii, jj)
-            d[i, j, 0] = ii * (1.0 / (1 + b * cos(m * theta)) - 1.0)
-            d[i, j, 1] = jj * (1.0 / (1 + b * cos(m * theta)) - 1.0)
-            inv[i, j, 0] = b * cos(m * theta) * ii
-            inv[i, j, 1] = b * cos(m * theta) * jj
+    with nogil, parallel():
+        for i in prange(nrows):
+            for j in range(ncols):
+                ii = i - mid_row
+                jj = j - mid_col
+                theta = atan2(ii, jj)
+                d[i, j, 0] = ii * (1.0 / (1 + b * cos(m * theta)) - 1.0)
+                d[i, j, 1] = jj * (1.0 / (1 + b * cos(m * theta)) - 1.0)
+                inv[i, j, 0] = b * cos(m * theta) * ii
+                inv[i, j, 1] = b * cos(m * theta) * jj
 
     return np.asarray(d), np.asarray(inv)
 
@@ -2965,19 +2968,20 @@ def create_harmonic_fields_3d(int nslices, cnp.npy_intp nrows,
                                         dtype=np.float64)
         double[:, :, :, :] inv = np.zeros((nslices, nrows, ncols, 3),
                                           dtype=np.float64)
-    for k in range(nslices):
-        for i in range(nrows):
-            for j in range(ncols):
-                kk = k - mid_slice
-                ii = i - mid_row
-                jj = j - mid_col
-                theta = atan2(ii, jj)
-                d[k, i, j, 0] = kk * (1.0 / (1 + b * cos(m * theta)) - 1.0)
-                d[k, i, j, 1] = ii * (1.0 / (1 + b * cos(m * theta)) - 1.0)
-                d[k, i, j, 2] = jj * (1.0 / (1 + b * cos(m * theta)) - 1.0)
-                inv[k, i, j, 0] = b * cos(m * theta) * kk
-                inv[k, i, j, 1] = b * cos(m * theta) * ii
-                inv[k, i, j, 2] = b * cos(m * theta) * jj
+    with nogil, parallel():
+        for k in prange(nslices):
+            for i in range(nrows):
+                for j in range(ncols):
+                    kk = k - mid_slice
+                    ii = i - mid_row
+                    jj = j - mid_col
+                    theta = atan2(ii, jj)
+                    d[k, i, j, 0] = kk * (1.0 / (1 + b * cos(m * theta)) - 1.0)
+                    d[k, i, j, 1] = ii * (1.0 / (1 + b * cos(m * theta)) - 1.0)
+                    d[k, i, j, 2] = jj * (1.0 / (1 + b * cos(m * theta)) - 1.0)
+                    inv[k, i, j, 0] = b * cos(m * theta) * kk
+                    inv[k, i, j, 1] = b * cos(m * theta) * ii
+                    inv[k, i, j, 2] = b * cos(m * theta) * jj
 
     return np.asarray(d), np.asarray(inv)
 
