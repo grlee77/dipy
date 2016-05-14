@@ -54,7 +54,7 @@ def interpolate_vector_2d(floating[:, :, :] field, double[:, :] locations):
     ftype = np.asarray(field).dtype
     cdef:
         cnp.npy_intp i, n = locations.shape[0]
-        floating[:, :] out = np.zeros(shape=(n, 2), dtype=ftype)
+        floating[:, :] out = np.empty(shape=(n, 2), dtype=ftype)
         int[:] inside = np.empty(shape=(n,), dtype=np.int32)
     with nogil:
         for i in range(n):
@@ -164,7 +164,7 @@ def interpolate_scalar_2d(floating[:, :] image, double[:, :] locations):
     ftype = np.asarray(image).dtype
     cdef:
         cnp.npy_intp i, n = locations.shape[0]
-        floating[:] out = np.zeros(shape=(n,), dtype=ftype)
+        floating[:] out = np.empty(shape=(n,), dtype=ftype)
         int[:] inside = np.empty(shape=(n,), dtype=np.int32)
     with nogil:
         for i in range(n):
@@ -268,7 +268,7 @@ def interpolate_scalar_nn_2d(number[:, :] image, double[:, :] locations):
     ftype = np.asarray(image).dtype
     cdef:
         cnp.npy_intp i, n = locations.shape[0]
-        number[:] out = np.zeros(shape=(n,), dtype=ftype)
+        number[:] out = np.empty(shape=(n,), dtype=ftype)
         int[:] inside = np.empty(shape=(n,), dtype=np.int32)
     with nogil:
         for i in range(n):
@@ -361,7 +361,7 @@ def interpolate_scalar_nn_3d(number[:, :, :] image, double[:, :] locations):
     ftype = np.asarray(image).dtype
     cdef:
         cnp.npy_intp i, n = locations.shape[0]
-        number[:] out = np.zeros(shape=(n,), dtype=ftype)
+        number[:] out = np.empty(shape=(n,), dtype=ftype)
         int[:] inside = np.empty(shape=(n,), dtype=np.int32)
     with nogil:
         for i in range(n):
@@ -463,7 +463,7 @@ def interpolate_scalar_3d(floating[:, :, :] image, locations):
     ftype = np.asarray(image).dtype
     cdef:
         cnp.npy_intp i, n = locations.shape[0]
-        floating[:] out = np.zeros(shape=(n,), dtype=ftype)
+        floating[:] out = np.empty(shape=(n,), dtype=ftype)
         int[:] inside = np.empty(shape=(n,), dtype=np.int32)
         double[:,:] _locations = np.array(locations, dtype=np.float64)
     with nogil:
@@ -597,7 +597,7 @@ def interpolate_vector_3d(floating[:, :, :, :] field, double[:, :] locations):
     ftype = np.asarray(field).dtype
     cdef:
         cnp.npy_intp i, n = locations.shape[0]
-        floating[:, :] out = np.zeros(shape=(n, 3), dtype=ftype)
+        floating[:, :] out = np.empty(shape=(n, 3), dtype=ftype)
         int[:] inside = np.empty(shape=(n,), dtype=np.int32)
     with nogil:
         for i in range(n):
@@ -907,7 +907,7 @@ def compose_vector_fields_2d(floating[:, :, :] d1, floating[:, :, :] d2,
         double[:] stats = np.zeros(shape=(3,), dtype=np.float64)
 
     if comp is None:
-        comp = np.zeros_like(d1)
+        comp = np.empty_like(d1)
 
     if not is_valid_affine(premult_index, 2):
         raise ValueError("Invalid index multiplication matrix")
@@ -1121,7 +1121,7 @@ def compose_vector_fields_3d(floating[:, :, :, :] d1, floating[:, :, :, :] d2,
         double[:] stats = np.zeros(shape=(3,), dtype=np.float64)
 
     if comp is None:
-        comp = np.zeros_like(d1)
+        comp = np.empty_like(d1)
 
     if not is_valid_affine(premult_index, 3):
         raise ValueError("Invalid index pre-multiplication matrix")
@@ -1191,9 +1191,9 @@ def invert_vector_field_fixed_point_2d(floating[:, :, :] d,
 
     ftype = np.asarray(d).dtype
     cdef:
-        double[:] stats = np.zeros(shape=(2,), dtype=np.float64)
+        double[:] stats = np.empty(shape=(2,), dtype=np.float64)
         double[:] substats = np.empty(shape=(3,), dtype=np.float64)
-        double[:, :] norms = np.zeros(shape=(nr, nc), dtype=np.float64)
+        double[:, :] norms = np.empty(shape=(nr, nc), dtype=np.float64)
         floating[:, :, :] p = np.zeros(shape=(nr, nc, 2), dtype=ftype)
         floating[:, :, :] q = np.zeros(shape=(nr, nc, 2), dtype=ftype)
 
@@ -1296,9 +1296,9 @@ def invert_vector_field_fixed_point_3d(floating[:, :, :, :] d,
 
     ftype = np.asarray(d).dtype
     cdef:
-        double[:] stats = np.zeros(shape=(2,), dtype=np.float64)
-        double[:] substats = np.zeros(shape=(3,), dtype=np.float64)
-        double[:, :, :] norms = np.zeros(shape=(ns, nr, nc), dtype=np.float64)
+        double[:] stats = np.empty(shape=(2,), dtype=np.float64)
+        double[:] substats = np.empty(shape=(3,), dtype=np.float64)
+        double[:, :, :] norms = np.empty(shape=(ns, nr, nc), dtype=np.float64)
         floating[:, :, :, :] p = np.zeros(shape=(ns, nr, nc, 3), dtype=ftype)
         floating[:, :, :, :] q = np.zeros(shape=(ns, nr, nc, 3), dtype=ftype)
 
@@ -1422,7 +1422,7 @@ def simplify_warp_function_2d(floating[:, :, :] d,
         cnp.npy_intp i, j
         double di, dj, dii, djj
         floating[:, :] tmp = np.zeros((nrows, 2), dtype=np.asarray(d).dtype)
-        floating[:, :, :] out = np.zeros(shape=(nrows, ncols, 2),
+        floating[:, :, :] out = np.empty(shape=(nrows, ncols, 2),
                                          dtype=np.asarray(d).dtype)
 
     if not is_valid_affine(affine_idx_in, 2):
@@ -1545,7 +1545,7 @@ def simplify_warp_function_3d(floating[:, :, :, :] d,
         cnp.npy_intp i, j, k, inside
         double di, dj, dk, dii, djj, dkk
         floating[:, :] tmp = np.zeros((nslices, 3), dtype=np.asarray(d).dtype)
-        floating[:, :, :, :] out = np.zeros(shape=(nslices, nrows, ncols, 3),
+        floating[:, :, :, :] out = np.empty(shape=(nslices, nrows, ncols, 3),
                                             dtype=np.asarray(d).dtype)
 
     if not is_valid_affine(affine_idx_in, 3):
@@ -1944,7 +1944,7 @@ def warp_3d(floating[:, :, :] volume, floating[:, :, :, :] d1,
         nrows = d1.shape[1]
         ncols = d1.shape[2]
 
-    cdef floating[:, :, :] warped = np.zeros(shape=(nslices, nrows, ncols),
+    cdef floating[:, :, :] warped = np.empty(shape=(nslices, nrows, ncols),
                                              dtype=np.asarray(volume).dtype)
     cdef floating[:, :] tmp = np.zeros(shape=(nslices, 3), dtype = np.asarray(d1).dtype)
 
@@ -2042,7 +2042,7 @@ def transform_3d_affine(floating[:, :, :] volume, int[:] ref_shape,
         int inside
         double dkk, dii, djj, tmp0, tmp1
         double alpha, beta, gamma, calpha, cbeta, cgamma
-        floating[:, :, :] out = np.zeros(shape=(nslices, nrows, ncols),
+        floating[:, :, :] out = np.empty(shape=(nslices, nrows, ncols),
                                          dtype=np.asarray(volume).dtype)
 
     if not is_valid_affine(affine, 3):
@@ -2144,7 +2144,7 @@ def warp_3d_nn(number[:, :, :] volume, floating[:, :, :, :] d1,
         nrows = d1.shape[1]
         ncols = d1.shape[2]
 
-    cdef number[:, :, :] warped = np.zeros(shape=(nslices, nrows, ncols),
+    cdef number[:, :, :] warped = np.empty(shape=(nslices, nrows, ncols),
                                            dtype=np.asarray(volume).dtype)
     cdef floating[:, :] tmp = np.zeros(shape=(nslices, 3), dtype = np.asarray(d1).dtype)
 
@@ -2240,7 +2240,7 @@ def transform_3d_affine_nn(number[:, :, :] volume, int[:] ref_shape,
         double dkk, dii, djj, tmp0, tmp1
         double alpha, beta, gamma, calpha, cbeta, cgamma
         cnp.npy_intp k, i, j, kk, ii, jj
-        number[:, :, :] out = np.zeros((nslices, nrows, ncols),
+        number[:, :, :] out = np.empty((nslices, nrows, ncols),
                                         dtype=np.asarray(volume).dtype)
 
     if not is_valid_affine(affine, 3):
@@ -2336,7 +2336,7 @@ def warp_2d(floating[:, :] image, floating[:, :, :] d1,
     elif d1 is not None:
         nrows = d1.shape[0]
         ncols = d1.shape[1]
-    cdef floating[:, :] warped = np.zeros(shape=(nrows, ncols),
+    cdef floating[:, :] warped = np.empty(shape=(nrows, ncols),
                                           dtype=np.asarray(image).dtype)
     cdef floating[:, :] tmp = np.zeros(shape=(nrows, 2), dtype=np.asarray(d1).dtype)
 
@@ -2420,7 +2420,7 @@ def transform_2d_affine(floating[:, :] image, int[:] ref_shape,
         cnp.npy_intp i, j, ii, jj
         double dii, djj, tmp0
         double alpha, beta, calpha, cbeta
-        floating[:, :] out = np.zeros(shape=(nrows, ncols),
+        floating[:, :] out = np.empty(shape=(nrows, ncols),
                                       dtype=np.asarray(image).dtype)
 
     if not is_valid_affine(affine, 2):
@@ -2513,7 +2513,7 @@ def warp_2d_nn(number[:, :] image, floating[:, :, :] d1,
     elif d1 is not None:
         nrows = d1.shape[0]
         ncols = d1.shape[1]
-    cdef number[:, :] warped = np.zeros(shape=(nrows, ncols),
+    cdef number[:, :] warped = np.empty(shape=(nrows, ncols),
                                         dtype=np.asarray(image).dtype)
     cdef floating[:, :] tmp = np.zeros(shape=(nrows, 2), dtype=np.asarray(d1).dtype)
 
@@ -2597,7 +2597,7 @@ def transform_2d_affine_nn(number[:, :] image, int[:] ref_shape,
         double dii, djj, tmp0
         double alpha, beta, calpha, cbeta
         cnp.npy_intp i, j, ii, jj
-        number[:, :] out = np.zeros((nrows, ncols),
+        number[:, :] out = np.empty((nrows, ncols),
                                     dtype=np.asarray(image).dtype)
 
     if not is_valid_affine(affine, 2):
@@ -2649,7 +2649,7 @@ def resample_displacement_field_3d(floating[:, :, :, :] field,
         cnp.npy_intp k, i, j
         int inside
         double dkk, dii, djj
-        floating[:, :, :, :] expanded = np.zeros((tslices, trows, tcols, 3),
+        floating[:, :, :, :] expanded = np.empty((tslices, trows, tcols, 3),
                                                  dtype=ftype)
 
     with nogil, parallel():
@@ -2694,7 +2694,7 @@ def resample_displacement_field_2d(floating[:, :, :] field, double[:] factors,
         cnp.npy_intp i, j
         int inside
         double dii, djj
-        floating[:, :, :] expanded = np.zeros((trows, tcols, 2), dtype=ftype)
+        floating[:, :, :] expanded = np.empty((trows, tcols, 2), dtype=ftype)
 
     with nogil, parallel():
         for i in prange(trows):
@@ -2744,7 +2744,7 @@ def create_random_displacement_2d(int[:] from_shape,
         double di, dj, dii, djj
         int[:, :, :] int_field = np.empty(tuple(from_shape) + (2,),
                                             dtype=np.int32)
-        double[:, :, :] output = np.zeros(tuple(from_shape) + (2,),
+        double[:, :, :] output = np.empty(tuple(from_shape) + (2,),
                                           dtype=np.float64)
         cnp.npy_intp dom_size = from_shape[0]*from_shape[1]
 
@@ -2824,7 +2824,7 @@ def create_random_displacement_3d(int[:] from_shape, double[:, :] from_grid2worl
         double di, dj, dk, dii, djj, dkk
         int[:, :, :, :] int_field = np.empty(tuple(from_shape) + (3,),
                                                dtype=np.int32)
-        double[:, :, :, :] output = np.zeros(tuple(from_shape) + (3,),
+        double[:, :, :, :] output = np.empty(tuple(from_shape) + (3,),
                                              dtype=np.float64)
         cnp.npy_intp dom_size = from_shape[0]*from_shape[1]*from_shape[2]
 
@@ -2910,8 +2910,8 @@ def create_harmonic_fields_2d(cnp.npy_intp nrows, cnp.npy_intp ncols,
         cnp.npy_intp mid_col = ncols/2
         cnp.npy_intp i, j, ii, jj
         double theta
-        double[:, :, :] d = np.zeros((nrows, ncols, 2), dtype=np.float64)
-        double[:, :, :] inv = np.zeros((nrows, ncols, 2), dtype=np.float64)
+        double[:, :, :] d = np.empty((nrows, ncols, 2), dtype=np.float64)
+        double[:, :, :] inv = np.empty((nrows, ncols, 2), dtype=np.float64)
     with nogil, parallel():
         for i in prange(nrows):
             for j in range(ncols):
@@ -2964,9 +2964,9 @@ def create_harmonic_fields_3d(int nslices, cnp.npy_intp nrows,
         cnp.npy_intp mid_col = ncols / 2
         cnp.npy_intp i, j, k, ii, jj, kk
         double theta
-        double[:, :, :, :] d = np.zeros((nslices, nrows, ncols, 3),
+        double[:, :, :, :] d = np.empty((nslices, nrows, ncols, 3),
                                         dtype=np.float64)
-        double[:, :, :, :] inv = np.zeros((nslices, nrows, ncols, 3),
+        double[:, :, :, :] inv = np.empty((nslices, nrows, ncols, 3),
                                           dtype=np.float64)
     with nogil, parallel():
         for k in prange(nslices):
@@ -3010,7 +3010,7 @@ def create_circle(cnp.npy_intp nrows, cnp.npy_intp ncols, cnp.npy_intp radius):
         cnp.npy_intp mid_col = ncols/2
         cnp.npy_intp i, j, ii, jj
         double r
-        double[:, :] c = np.zeros((nrows, ncols), dtype=np.float64)
+        double[:, :] c = np.empty((nrows, ncols), dtype=np.float64)
     for i in range(nrows):
         for j in range(ncols):
             ii = i - mid_row
@@ -3051,7 +3051,7 @@ def create_sphere(cnp.npy_intp nslices, cnp.npy_intp nrows,
         cnp.npy_intp mid_col = ncols/2
         cnp.npy_intp i, j, k, ii, jj, kk
         double r
-        double[:, :, :] s = np.zeros((nslices, nrows, ncols), dtype=np.float64)
+        double[:, :, :] s = np.empty((nslices, nrows, ncols), dtype=np.float64)
 
     for k in range(nslices):
         for i in range(nrows):
