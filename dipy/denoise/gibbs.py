@@ -3,9 +3,9 @@ import numpy as np
 
 try:
     # SciPy 1.4+ has a more efficient FFT under scipy.fft
-    from scipy.fft import fft2, ifft2, fftshift, ifftshift
+    from scipy.fft import fftn, ifftn, fftshift, ifftshift
 except ImportError:
-    from scipy.fftpack import fft2, ifft2, fftshift, ifftshift
+    from scipy.fftpack import fftn, ifftn, fftshift, ifftshift
 
 
 def _image_tv(x, axis=0, n_points=3):
@@ -111,7 +111,7 @@ def _gibbs_removal_1d(x, axis=0, n_points=3):
     sp = np.zeros(xs.shape, dtype=float_dtype)
     sn = np.zeros(xs.shape, dtype=float_dtype)
     N = xs.shape[1]
-    c = fft2(xs, axes=(0, 1))
+    c = fftn(xs, axes=(0, 1))
     c = fftshift(c, axes=(0, 1))
     k = np.linspace(-N/2, N/2-1, num=N, dtype=float_dtype)
     k = (2.0j * np.pi * k) / N
@@ -125,7 +125,7 @@ def _gibbs_removal_1d(x, axis=0, n_points=3):
         eks = np.exp(ks)
         img_p = c * eks
         img_p = fftshift(img_p, axes=(0, 1))
-        img_p = ifft2(img_p, axes=(0, 1))
+        img_p = ifftn(img_p, axes=(0, 1), overwrite_x=True)
         img_p = np.abs(img_p)
         tvsr, tvsl = _image_tv(img_p, axis=1, n_points=n_points)
         tvs_p = np.minimum(tvsr, tvsl)
@@ -133,20 +133,19 @@ def _gibbs_removal_1d(x, axis=0, n_points=3):
         # Access negative shift for given s
         img_n = c * np.conj(eks)
         img_n = fftshift(img_n, axes=(0, 1))
-        img_n = ifft2(img_n, axes=(0, 1))
+        img_n = ifftn(img_n, axes=(0, 1), overwrite_x=True)
         img_n = np.abs(img_n)
         tvsr, tvsl = _image_tv(img_n, axis=1, n_points=n_points)
         tvs_n = np.minimum(tvsr, tvsl)
 
-        maskp = tvp > tvs_p
-        maskn = tvn > tvs_n
-
         # Update positive shift params
+        maskp = tvp > tvs_p
         isp[maskp] = img_p[maskp]
         sp[maskp] = s
         tvp[maskp] = tvs_p[maskp]
 
         # Update negative shift params
+        maskn = tvn > tvs_n
         isn[maskn] = img_n[maskn]
         sn[maskn] = s
         tvn[maskn] = tvs_n[maskn]
@@ -272,14 +271,13 @@ def _gibbs_removal_2d(image, n_points=3, G0=None, G1=None):
     img_c1 = _gibbs_removal_1d(image, axis=1, n_points=n_points)
     img_c0 = _gibbs_removal_1d(image, axis=0, n_points=n_points)
 
-    C1 = fft2(img_c1, axes=(0, 1))
-    C0 = fft2(img_c0, axes=(0, 1))
+    C1 = fftn(img_c1, axes=(0, 1), overwrite_x=True)
+    C0 = fftn(img_c0, axes=(0, 1), overwrite_x=True)
     imagec = fftshift(C1, axes=(0, 1)) * G1
     imagec += fftshift(C0, axes=(0, 1)) * G0
-    imagec = ifft2(imagec, axes=(0, 1))
-    np.abs(imagec, out=imagec)
+    imagec = ifftn(imagec, axes=(0, 1), overwrite_x=True)
 
-    return imagec
+    return np.abs(imagec)
 
 
 def gibbs_removal(vol, slice_axis=2, n_points=3):
