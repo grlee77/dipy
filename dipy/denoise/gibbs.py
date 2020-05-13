@@ -23,26 +23,40 @@ def _image_tv(x, axis=0, n_points=3):
         Total variation calculated from the left neighbours of each point.
 
     """
-    xs = x.copy() if axis else x.T.copy()
+    if axis:
+        xs = x
+    else:
+        xs = x.transpose((1, 0) + tuple(range(2, x.ndim)))
 
     # Add copies of the data so that data extreme points are also analysed
-    xs = np.concatenate((xs[:, (-n_points-1):], xs, xs[:, 0:(n_points+1)]),
+    xs = np.concatenate((xs[:, (-n_points-1):, ...], xs, xs[:, 0:(n_points+1), ...]),
                         axis=1)
 
-    ptv = np.absolute(xs[:, (n_points+1):(-n_points-1)] -
-                      xs[:, (n_points+2):(-n_points)])
-    ntv = np.absolute(xs[:, (n_points+1):(-n_points-1)] -
-                      xs[:, (n_points):(-n_points-2)])
-    for n in range(1, n_points):
-        ptv = ptv + np.absolute(xs[:, (n_points+1+n):(-n_points-1+n)] -
-                                xs[:, (n_points+2+n):(-n_points+n)])
-        ntv = ntv + np.absolute(xs[:, (n_points+1-n):(-n_points-1-n)] -
-                                xs[:, (n_points-n):(-n_points-2-n)])
+    ptv = np.abs(
+        xs[:, (n_points + 1) : (-n_points - 1), ...]
+        - xs[:, (n_points + 2) : (-n_points), ...]
+    )
+    ntv = np.abs(
+        xs[:, (n_points + 1) : (-n_points - 1), ...]
+        - xs[:, (n_points) : (-n_points - 2), ...]
+    )
 
-    if axis:
-        return ptv, ntv
-    else:
-        return ptv.T, ntv.T
+    for n in range(1, n_points):
+        ptv = ptv + np.abs(
+            xs[:, (n_points + 1 + n) : (-n_points - 1 + n), ...]
+            - xs[:, (n_points + 2 + n) : (-n_points + n), ...]
+        )
+        ntv = ntv + np.abs(
+            xs[:, (n_points + 1 - n) : (-n_points - 1 - n), ...]
+            - xs[:, (n_points - n) : (-n_points - 2 - n), ...]
+        )
+
+
+    if not axis:
+        ptv = ptv.transpose((1, 0) + tuple(range(2, x.ndim)))
+        ntv = ntv.transpose((1, 0) + tuple(range(2, x.ndim)))
+    return ptv, ntv
+
 
 
 def _gibbs_removal_1d(x, axis=0, n_points=3):
@@ -75,7 +89,10 @@ def _gibbs_removal_1d(x, axis=0, n_points=3):
     """
     ssamp = np.linspace(0.02, 0.9, num=45)
 
-    xs = x.copy() if axis else x.T.copy()
+    if axis:
+        xs = x.copy()
+    else:
+        xs = x.transpose((1, 0) + tuple(range(2, x.ndim))).copy()
 
     # TV for shift zero (baseline)
     tvr, tvl = _image_tv(xs, axis=1, n_points=n_points)
@@ -88,17 +105,21 @@ def _gibbs_removal_1d(x, axis=0, n_points=3):
     sp = np.zeros(xs.shape)
     sn = np.zeros(xs.shape)
     N = xs.shape[1]
-    c = np.fft.fftshift(np.fft.fft2(xs))
+    c = np.fft.fftshift(np.fft.fft2(xs, axes=(0, 1)), axes=(0, 1))
     k = np.linspace(-N/2, N/2-1, num=N)
     k = (2.0j * np.pi * k) / N
+    if xs.ndim == 2:
+        k = k[np.newaxis, :]
+    elif xs.ndim == 3:
+        k = k[np.newaxis, :, np.newaxis]
     for s in ssamp:
         # Access positive shift for given s
-        img_p = abs(np.fft.ifft2(np.fft.fftshift(c * np.exp(k*s))))
+        img_p = abs(np.fft.ifft2(np.fft.fftshift(c * np.exp(k*s), axes=(0, 1)), axes=(0, 1)))
         tvsr, tvsl = _image_tv(img_p, axis=1, n_points=n_points)
         tvs_p = np.minimum(tvsr, tvsl)
 
         # Access negative shift for given s
-        img_n = abs(np.fft.ifft2(np.fft.fftshift(c * np.exp(-k*s))))
+        img_n = abs(np.fft.ifft2(np.fft.fftshift(c * np.exp(-k*s), axes=(0, 1)), axes=(0, 1)))
         tvsr, tvsl = _image_tv(img_n, axis=1, n_points=n_points)
         tvs_n = np.minimum(tvsr, tvsl)
 
@@ -119,7 +140,9 @@ def _gibbs_removal_1d(x, axis=0, n_points=3):
     # original grid points
     xs[idx] = (isp[idx] - isn[idx])/(sp[idx] + sn[idx])*sn[idx] + isn[idx]
 
-    return xs if axis else xs.T
+    if not axis:
+        xs = xs.transpose((1, 0) + tuple(range(2, xs.ndim)))
+    return xs
 
 
 def _weights(shape):
@@ -207,15 +230,23 @@ def _gibbs_removal_2d(image, n_points=3, G0=None, G1=None):
            doi: 10.1002/mrm.26054.
 
     """
-    if np.any(G0) is None or np.any(G1) is None:
-        G0, G1 = _weights(image.shape)
+    if G0 is None or G1 is None:
+        G0, G1 = _weights(image.shape[:2])
+        if image.ndim > 2:
+            G0 = G0[..., np.newaxis]
+            G1 = G1[..., np.newaxis]
 
+    if image.ndim not in [2, 3]:
+        raise ValueError(
+            "expected a 2D image or a 3D array corresponding to a batch of 2D "
+            "images stacked along the last axis"
+        )
     img_c1 = _gibbs_removal_1d(image, axis=1, n_points=n_points)
     img_c0 = _gibbs_removal_1d(image, axis=0, n_points=n_points)
 
-    C1 = np.fft.fft2(img_c1)
-    C0 = np.fft.fft2(img_c0)
-    imagec = abs(np.fft.ifft2(np.fft.fftshift(C1)*G1 + np.fft.fftshift(C0)*G0))
+    C1 = np.fft.fft2(img_c1, axes=(0, 1))
+    C0 = np.fft.fft2(img_c0, axes=(0, 1))
+    imagec = abs(np.fft.ifft2(np.fft.fftshift(C1, axes=(0, 1))*G1 + np.fft.fftshift(C0, axes=(0, 1))*G0, axes=(0, 1)))
 
     return imagec
 
@@ -284,12 +315,11 @@ def gibbs_removal(vol, slice_axis=2, n_points=3):
     G0, G1 = _weights(shap[:2])
 
     # Run Gibbs removal of 2D images
-    if nd == 2:
-        vol = _gibbs_removal_2d(vol, n_points=n_points, G0=G0, G1=G1)
-    else:
-        for vi in range(shap[2]):
-            vol[:, :, vi] = _gibbs_removal_2d(vol[:, :, vi], n_points=n_points,
-                                              G0=G0, G1=G1)
+    if nd > 2:
+        G0 = G0[..., np.newaxis]
+        G1 = G1[..., np.newaxis]
+#     vol = vol.copy()
+    vol = _gibbs_removal_2d(vol, n_points=n_points, G0=G0, G1=G1)
 
     # Reshape data to original format
     if nd == 4:
