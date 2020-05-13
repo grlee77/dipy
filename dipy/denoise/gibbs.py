@@ -63,7 +63,6 @@ def _image_tv(x, axis=0, n_points=3):
     return ptv, ntv
 
 
-
 def _gibbs_removal_1d(x, axis=0, n_points=3):
     """Suppresses Gibbs ringing along a given axis using fourier sub-shifts.
 
@@ -202,17 +201,18 @@ def _weights(shape, image_dtype):
     k1 = np.linspace(-np.pi, np.pi, num=shape[1], dtype=dtype)
 
     # Middle points
-    K1, K0 = np.meshgrid(k1[1:-1], k0[1:-1])
+    K1, K0 = np.meshgrid(k1[1:-1], k0[1:-1], sparse=True)
     cosk0 = 1.0 + np.cos(K0)
     cosk1 = 1.0 + np.cos(K1)
-    G1[1:-1, 1:-1] = cosk0 / (cosk0 + cosk1)
-    G0[1:-1, 1:-1] = cosk1 / (cosk0 + cosk1)
+    denom = cosk0 + cosk1
+    G1[1:-1, 1:-1] = cosk0 / denom
+    G0[1:-1, 1:-1] = cosk1 / denom
 
     # Boundaries
     G1[1:-1, 0] = G1[1:-1, -1] = 1
-    G1[0, 0] = G1[-1, -1] = G1[0, -1] = G1[-1, 0] = 1/2
+    G1[0, 0] = G1[-1, -1] = G1[0, -1] = G1[-1, 0] = 0.5
     G0[0, 1:-1] = G0[-1, 1:-1] = 1
-    G0[0, 0] = G0[-1, -1] = G0[0, -1] = G0[-1, 0] = 1/2
+    G0[0, 0] = G0[-1, -1] = G0[0, -1] = G0[-1, 0] = 0.5
 
     return G0, G1
 
