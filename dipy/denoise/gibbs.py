@@ -1,6 +1,12 @@
 
 import numpy as np
 
+try:
+    # SciPy 1.4+ has a more efficient FFT under scipy.fft
+    from scipy.fft import fft2, ifft2, fftshift, ifftshift
+except ImportError:
+    from scipy.fftpack import fft2, ifft2, fftshift, ifftshift
+
 
 def _image_tv(x, axis=0, n_points=3):
     """ Computes total variation (TV) of matrix x across a given axis and
@@ -87,7 +93,9 @@ def _gibbs_removal_1d(x, axis=0, n_points=3):
     considered in TV calculation can be adjusted using the parameter n_points.
 
     """
-    ssamp = np.linspace(0.02, 0.9, num=45)
+    float_dtype = np.promote_types(x.dtype, np.float32)
+
+    ssamp = np.linspace(0.02, 0.9, num=45, dtype=float_dtype)
 
     if axis:
         xs = x.copy()
@@ -102,11 +110,11 @@ def _gibbs_removal_1d(x, axis=0, n_points=3):
     # Find optimal shift for gibbs removal
     isp = xs.copy()
     isn = xs.copy()
-    sp = np.zeros(xs.shape)
-    sn = np.zeros(xs.shape)
+    sp = np.zeros(xs.shape, dtype=float_dtype)
+    sn = np.zeros(xs.shape, dtype=float_dtype)
     N = xs.shape[1]
-    c = np.fft.fftshift(np.fft.fft2(xs, axes=(0, 1)), axes=(0, 1))
-    k = np.linspace(-N/2, N/2-1, num=N)
+    c = fftshift(fft2(xs, axes=(0, 1)), axes=(0, 1))
+    k = np.linspace(-N/2, N/2-1, num=N, dtype=float_dtype)
     k = (2.0j * np.pi * k) / N
     if xs.ndim == 2:
         k = k[np.newaxis, :]
@@ -114,12 +122,12 @@ def _gibbs_removal_1d(x, axis=0, n_points=3):
         k = k[np.newaxis, :, np.newaxis]
     for s in ssamp:
         # Access positive shift for given s
-        img_p = abs(np.fft.ifft2(np.fft.fftshift(c * np.exp(k*s), axes=(0, 1)), axes=(0, 1)))
+        img_p = abs(ifft2(fftshift(c * np.exp(k*s), axes=(0, 1)), axes=(0, 1)))
         tvsr, tvsl = _image_tv(img_p, axis=1, n_points=n_points)
         tvs_p = np.minimum(tvsr, tvsl)
 
         # Access negative shift for given s
-        img_n = abs(np.fft.ifft2(np.fft.fftshift(c * np.exp(-k*s), axes=(0, 1)), axes=(0, 1)))
+        img_n = abs(ifft2(fftshift(c * np.exp(-k*s), axes=(0, 1)), axes=(0, 1)))
         tvsr, tvsl = _image_tv(img_n, axis=1, n_points=n_points)
         tvs_n = np.minimum(tvsr, tvsl)
 
@@ -145,7 +153,7 @@ def _gibbs_removal_1d(x, axis=0, n_points=3):
     return xs
 
 
-def _weights(shape):
+def _weights(shape, image_dtype):
     """ Computes the weights necessary to combine two images processed by
     the 1D Gibbs removal procedure along two different axes [1]_.
 
@@ -168,10 +176,13 @@ def _weights(shape):
            doi: 10.1002/mrm.26054.
 
     """
-    G0 = np.zeros(shape)
-    G1 = np.zeros(shape)
-    k0 = np.linspace(-np.pi, np.pi, num=shape[0])
-    k1 = np.linspace(-np.pi, np.pi, num=shape[1])
+
+    dtype = np.promote_types(np.float32, image_dtype)
+
+    G0 = np.zeros(shape, dtype=dtype)
+    G1 = np.zeros(shape, dtype=dtype)
+    k0 = np.linspace(-np.pi, np.pi, num=shape[0], dtype=dtype)
+    k1 = np.linspace(-np.pi, np.pi, num=shape[1], dtype=dtype)
 
     # Middle points
     K1, K0 = np.meshgrid(k1[1:-1], k0[1:-1])
@@ -231,7 +242,7 @@ def _gibbs_removal_2d(image, n_points=3, G0=None, G1=None):
 
     """
     if G0 is None or G1 is None:
-        G0, G1 = _weights(image.shape[:2])
+        G0, G1 = _weights(image.shape[:2], image.dtype)
         if image.ndim > 2:
             G0 = G0[..., np.newaxis]
             G1 = G1[..., np.newaxis]
@@ -244,9 +255,9 @@ def _gibbs_removal_2d(image, n_points=3, G0=None, G1=None):
     img_c1 = _gibbs_removal_1d(image, axis=1, n_points=n_points)
     img_c0 = _gibbs_removal_1d(image, axis=0, n_points=n_points)
 
-    C1 = np.fft.fft2(img_c1, axes=(0, 1))
-    C0 = np.fft.fft2(img_c0, axes=(0, 1))
-    imagec = abs(np.fft.ifft2(np.fft.fftshift(C1, axes=(0, 1))*G1 + np.fft.fftshift(C0, axes=(0, 1))*G0, axes=(0, 1)))
+    C1 = fft2(img_c1, axes=(0, 1))
+    C0 = fft2(img_c0, axes=(0, 1))
+    imagec = abs(ifft2(fftshift(C1, axes=(0, 1))*G1 + fftshift(C0, axes=(0, 1))*G0, axes=(0, 1)))
 
     return imagec
 
@@ -312,7 +323,7 @@ def gibbs_removal(vol, slice_axis=2, n_points=3):
 
     # Produce weigthing functions for 2D Gibbs removal
     shap = vol.shape
-    G0, G1 = _weights(shap[:2])
+    G0, G1 = _weights(shap[:2], vol.dtype)
 
     # Run Gibbs removal of 2D images
     if nd > 2:
