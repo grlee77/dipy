@@ -48,15 +48,14 @@ def _image_tv(x, axis=0, n_points=3):
     )
 
     for n in range(1, n_points):
-        ptv = ptv + np.abs(
+        ptv += np.abs(
             xs[:, (n_points + 1 + n) : (-n_points - 1 + n), ...]
             - xs[:, (n_points + 2 + n) : (-n_points + n), ...]
         )
-        ntv = ntv + np.abs(
+        ntv += np.abs(
             xs[:, (n_points + 1 - n) : (-n_points - 1 - n), ...]
             - xs[:, (n_points - n) : (-n_points - 2 - n), ...]
         )
-
 
     if not axis:
         ptv = ptv.transpose((1, 0) + tuple(range(2, x.ndim)))
@@ -113,7 +112,8 @@ def _gibbs_removal_1d(x, axis=0, n_points=3):
     sp = np.zeros(xs.shape, dtype=float_dtype)
     sn = np.zeros(xs.shape, dtype=float_dtype)
     N = xs.shape[1]
-    c = fftshift(fft2(xs, axes=(0, 1)), axes=(0, 1))
+    c = fft2(xs, axes=(0, 1))
+    c = fftshift(c, axes=(0, 1))
     k = np.linspace(-N/2, N/2-1, num=N, dtype=float_dtype)
     k = (2.0j * np.pi * k) / N
     if xs.ndim == 2:
@@ -122,31 +122,48 @@ def _gibbs_removal_1d(x, axis=0, n_points=3):
         k = k[np.newaxis, :, np.newaxis]
     for s in ssamp:
         # Access positive shift for given s
-        img_p = abs(ifft2(fftshift(c * np.exp(k*s), axes=(0, 1)), axes=(0, 1)))
+        ks = k * s
+        eks = np.exp(ks)
+        img_p = c * eks
+        img_p = fftshift(img_p, axes=(0, 1))
+        img_p = ifft2(img_p, axes=(0, 1))
+        img_p = np.abs(img_p)
         tvsr, tvsl = _image_tv(img_p, axis=1, n_points=n_points)
         tvs_p = np.minimum(tvsr, tvsl)
 
         # Access negative shift for given s
-        img_n = abs(ifft2(fftshift(c * np.exp(-k*s), axes=(0, 1)), axes=(0, 1)))
+        img_n = c * np.conj(eks)
+        img_n = fftshift(img_n, axes=(0, 1))
+        img_n = ifft2(img_n, axes=(0, 1))
+        img_n = np.abs(img_n)
         tvsr, tvsl = _image_tv(img_n, axis=1, n_points=n_points)
         tvs_n = np.minimum(tvsr, tvsl)
 
+        maskp = tvp > tvs_p
+        maskn = tvn > tvs_n
+
         # Update positive shift params
-        isp[tvp > tvs_p] = img_p[tvp > tvs_p]
-        sp[tvp > tvs_p] = s
-        tvp[tvp > tvs_p] = tvs_p[tvp > tvs_p]
+        isp[maskp] = img_p[maskp]
+        sp[maskp] = s
+        tvp[maskp] = tvs_p[maskp]
 
         # Update negative shift params
-        isn[tvn > tvs_n] = img_n[tvn > tvs_n]
-        sn[tvn > tvs_n] = s
-        tvn[tvn > tvs_n] = tvs_n[tvn > tvs_n]
+        isn[maskn] = img_n[maskn]
+        sn[maskn] = s
+        tvn[maskn] = tvs_n[maskn]
 
     # check non-zero sub-voxel shifts
     idx = np.nonzero(sp + sn)
 
     # use positive and negative optimal sub-voxel shifts to interpolate to
     # original grid points
-    xs[idx] = (isp[idx] - isn[idx])/(sp[idx] + sn[idx])*sn[idx] + isn[idx]
+    sn_i = sn[idx]
+    isn_i = isn[idx]
+    tmp = isp[idx] - isn_i
+    tmp /= sp[idx] + sn_i
+    tmp *= sn_i
+    tmp += isn_i
+    xs[idx] = tmp
 
     if not axis:
         xs = xs.transpose((1, 0) + tuple(range(2, xs.ndim)))
@@ -257,7 +274,10 @@ def _gibbs_removal_2d(image, n_points=3, G0=None, G1=None):
 
     C1 = fft2(img_c1, axes=(0, 1))
     C0 = fft2(img_c0, axes=(0, 1))
-    imagec = abs(ifft2(fftshift(C1, axes=(0, 1))*G1 + fftshift(C0, axes=(0, 1))*G0, axes=(0, 1)))
+    imagec = fftshift(C1, axes=(0, 1)) * G1
+    imagec += fftshift(C0, axes=(0, 1)) * G0
+    imagec = ifft2(imagec, axes=(0, 1))
+    np.abs(imagec, out=imagec)
 
     return imagec
 
@@ -329,7 +349,6 @@ def gibbs_removal(vol, slice_axis=2, n_points=3):
     if nd > 2:
         G0 = G0[..., np.newaxis]
         G1 = G1[..., np.newaxis]
-#     vol = vol.copy()
     vol = _gibbs_removal_2d(vol, n_points=n_points, G0=G0, G1=G1)
 
     # Reshape data to original format
