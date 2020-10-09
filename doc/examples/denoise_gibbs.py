@@ -78,8 +78,11 @@ t1_gibbs = abs(np.fft.ifft2(c_crop)/4)
 Gibbs oscillation suppression of this single data slice can be performed by
 running the following command:
 """
-
+import time
+tstart = time.time()
 t1_unring = gibbs_removal(t1_gibbs)
+dur = time.time() - tstart
+print(f"duration (2d) = {dur}")
 
 """
 Let’s plot the results:
@@ -168,7 +171,10 @@ Gibbs oscillation suppression of all multi-shell data and all slices
 can be performed in the following way:
 """
 
+tstart = time.time()
 data_corrected = gibbs_removal(data_slices, slice_axis=2)
+dur = time.time() - tstart
+print(f"duration (3d) = {dur}")
 
 """
 Due to the high dimensionality of diffusion-weighted data, we recommend
