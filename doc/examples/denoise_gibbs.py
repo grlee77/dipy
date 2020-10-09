@@ -172,7 +172,7 @@ can be performed in the following way:
 """
 
 tstart = time.time()
-data_corrected = gibbs_removal(data_slices, slice_axis=2)
+data_corrected = gibbs_removal(data_slices, slice_axis=2, num_processes=0)
 dur = time.time() - tstart
 print(f"duration (3d) = {dur}")
 
